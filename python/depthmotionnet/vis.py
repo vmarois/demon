@@ -418,3 +418,60 @@ def transform_pointcloud_points(points, T):
     tmp[:,3] = 1
     return T.dot(tmp.transpose())[0:3].transpose()
 
+
+
+def export_pointcloud_to_csv(filename, inverse_depth, intrinsics=None, normals=None, rotation=None, translation=None, image=None ):
+    """
+        Exports the pointcloud to csv files meant for external visualization.
+        :param filename: string for the output file name
+        :param inverse_depth: numpy.ndarray. 2d array with the inverse depth values with shape (h,w)
+        :param intrinsics: numpy.ndarray. 4 element vector with the normalized intrinsic parameters with shape (4,)
+        :param normals: numpy.ndarray. normal map with shape (3,h,w)
+        :param rotation: numpy.ndarray. rotation in axis angle format with 3 elements with shape (3,)
+        :param translation: numpy.ndarray. translation vector with shape (3,)
+        :param image: numpy.ndarray. Image with shape (3,h,w) in the range [-0.5,0.5].
+        """
+    depth = (1 / inverse_depth).squeeze()
+    
+    w = depth.shape[-1]
+    h = depth.shape[-2]
+    
+    if intrinsics is None:
+        intrinsics = np.array([0.89115971, 1.18821287, 0.5, 0.5])  # sun3d intrinsics
+
+    K = np.eye(3)
+    K[0, 0] = intrinsics[0] * w
+    K[1, 1] = intrinsics[1] * h
+    K[0, 2] = intrinsics[2] * w
+    K[1, 2] = intrinsics[3] * h
+
+R1 = np.eye(3)
+t1 = np.zeros((3,))
+
+if not rotation is None and not translation is None:
+    R2 = angleaxis_to_rotation_matrix(rotation.squeeze())
+    t2 = translation.squeeze()
+    else:
+        R2 = np.eye(3)
+        t2 = np.zeros((3,))
+    
+    if not normals is None:
+        n = normals.squeeze()
+else:
+    n = None
+    
+    if not image is None:
+        img = ((image + 0.5) * 255).astype(np.uint8)
+else:
+    img = None
+    
+    pointcloud = compute_point_cloud_from_depthmap(depth, K, R1, t1, n, img)
+    
+    # create a pandas Dataframe to indicate column names
+    pc_dataframe = pd.concat(
+                             [pd.DataFrame(data=pointcloud['points'], columns=['X', 'Y', 'Z']),
+                              pd.DataFrame(data=pointcloud['colors'], columns=['R', 'G', 'B'])], axis=1
+                             )
+                             # save points & colors data to file (plot in paraview)
+    pc_dataframe.to_csv("{}_pointcloud.csv".format(filename), sep=',')
+
