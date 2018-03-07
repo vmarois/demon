@@ -62,8 +62,11 @@ else: # running on cpu requires channels_last data format
 #
 
 # read data
-img1 = Image.open(os.path.join(examples_dir,'sculpture1.png'))
-img2 = Image.open(os.path.join(examples_dir,'sculpture2.png'))
+img1_name = 'proj2-pair1-L.png'
+img2_name = 'proj2-pair1-R.png'
+
+img1 = Image.open(os.path.join(examples_dir, img1_name))
+img2 = Image.open(os.path.join(examples_dir, img2_name))
 
 input_data = prepare_input_data(img1,img2,data_format)
 
@@ -95,12 +98,33 @@ for i in range(3):
         result['predict_translation']
     )
 rotation = result['predict_rotation']
+rot_matrix = angleaxis_to_rotation_matrix(rotation.squeeze())
+print "\nrotation matrix = ", rot_matrix
 translation = result['predict_translation']
+print "\ntranslation vector = ", translation
+
 result = refine_net.eval(input_data['image1'],result['predict_depth2'])
 
-
+# display depth map as an image
 plt.imshow(result['predict_depth0'].squeeze(), cmap='Greys')
 plt.show()
+
+# try to export the pointcloud to .csv
+try:
+    export_pointcloud_to_csv(
+                             filename=img1_name[:-4],
+                             inverse_depth=result['predict_depth0'],
+                             image=input_data['image_pair'][0, 0:3] if data_format=='channels_first' else input_data['image_pair'].transpose([0,3,1,2])[0,0:3],
+                             rotation=rotation,
+                             translation=translation)
+except ImportError as err_2:
+    print("Cannot export to csv..", err_2)
+
+print('\nPointcloud saved to .csv file.')
+
+# try to find the depth threshold
+threshold = find_depth_threshold("{}_pointcloud.csv".format(img1_name[:-4]))
+print '\nDepth threshold : ', threshold
 
 # try to visualize the point cloud
 try:
@@ -113,3 +137,5 @@ try:
 except ImportError as err:
     print("Cannot visualize as pointcloud.", err)
 
+# use the depth threshold to ignore points located far away from the scene
+ignore_points_depth_threshold("{}_pointcloud.csv".format(img1_name[:-4]), threshold)
