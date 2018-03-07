@@ -475,3 +475,23 @@ else:
                              # save points & colors data to file (plot in paraview)
     pc_dataframe.to_csv("{}_pointcloud.csv".format(filename), sep=',')
 
+
+
+def find_depth_threshold(filename):
+    """
+        Find the z-coordinate threshold for a pointcloud list. Allows to select points representing the scene & not the
+        'sky' (points at infinity).
+        This method uses the histogram to find the argmax bin & select its right edge -> assumes the modes are distinct on
+        the histogram & there are more points representing the scene than the 'sky'!
+        :param filename: The .csv file containing the pointcloud coordinates
+        :return: the depth threshold
+        """
+    # read in csv file containing pointcloud coordinates
+    pc = pd.read_csv(filename)
+    
+    # extract info from the histogram
+    n, bins, patches = plt.hist(pc['Z'], bins=40, normed=True)
+    # n : The values of the histogram bins
+    # bins : The left edges of the bins
+    threshold = bins[np.argmax(n)+1]  # select the bin directly on the right of the argmax bin
+    return np.ceil(threshold)
