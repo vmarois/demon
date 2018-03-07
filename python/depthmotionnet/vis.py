@@ -495,3 +495,18 @@ def find_depth_threshold(filename):
     # bins : The left edges of the bins
     threshold = bins[np.argmax(n)+1]  # select the bin directly on the right of the argmax bin
     return np.ceil(threshold)
+
+
+
+def ignore_points_depth_threshold(filename, threshold):
+    """
+        Using the threshold found by find_depth_threshold(), this function reads in the .csv file containing all points
+        from a scene, and saves to a new file those which respect Z <= threshold.
+        :param filename: the .csv filename containing the whole pointcloud.
+        :param threshold: depth threshold.
+        """
+    pc = pd.read_csv(filename, index_col=0)
+    
+    pc_thresholded = pc.ix[pc['Z'] <= threshold]
+    
+    pc_thresholded.to_csv("thres_{}".format(filename), sep=',')
