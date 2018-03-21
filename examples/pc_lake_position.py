@@ -6,46 +6,82 @@ import os
 import sys
 
 examples_dir = os.path.dirname(__file__)
+pointclouds_dir = os.path.join(examples_dir, "pointclouds/")
+pointclouds_thres_dir = os.path.join(examples_dir, "pointclouds_thres/")
 sys.path.insert(0, os.path.join(examples_dir, '..', 'python'))
 from depthmotionnet.vis import *
 
 
+def read_csv_values(file, image_ref):
+    """
+    Parse image_auxiliary.csv to retrieve [x, y, theta, pan, tilt, omega] for the specified image reference
+    :param file: path to image_auxiliary.csv
+    :param image_ref: corresponding 'seq' key for the image
+    :return: [x, y, theta, pan, tilt, omega] as a np.array
+    """
+    file = open(file)
+    dataframe = pd.read_csv(file)
+    dataframe = np.array(dataframe.values)
+    image_list = dataframe[:, 1]
+    index = (np.abs(image_list - image_ref)).argmin()
+    x = dataframe[index, 2]
+    y = dataframe[index, 3]
+    theta = dataframe[index, 4]
+    pan = dataframe[index, 5]
+    tilt = dataframe[index, 6]
+    omega = dataframe[index, 14]
+    data = np.array([x, y, theta, pan, tilt, omega])
+
+    return data
+
+
+def rotation_matrix(theta, pan, tilt):
+    """
+    Compute the rotation matrix to apply to the pointcloud:
+    (theta-pan) around Z axis
+    (-tilt) around Y axis
+    :return: global 3x3 rotation matrix
+    """
+    Ry = np.array([[np.cos(-tilt), 0, np.sin(-tilt)], [0, 1, 0], [-np.sin(-tilt), 0, np.cos(-tilt)]])
+    Rz = np.array([[np.cos(theta-pan), -np.sin(theta-pan), 0], [np.sin(theta-pan), np.cos(theta-pan), 0], [0, 0, 1]])
+    return np.matmul(Ry, Rz)
+
+
 """
 ** INITIAL TEST **
-- Assume pointclouds have already been exported to CSV with export_pointcloud_to_csv()
+- Assume pointclouds have already been exported to CSV with export_pointcloud_to_csv(), and that they are located in
+examples/pointclouds/
+- Assume the image_auxilliary file used is in 160808/
 """
+# start by building a list of the 'seq' values corresponding to the .csv in pointclouds/
+seq_index = [f[:5] for f in os.listdir(pointclouds_dir) if os.path.isfile(os.path.join(pointclouds_dir, f))]
 
-# csv filenames (entire pointcloud): they are located in /examples for now TODO: dynamically go through the directories
-scenes = ['0382_pointcloud.csv', '0484_pointcloud.csv']
-
-# set the path to the dataset TODO: Retrieve the directory from which we took the example '0382.jpg' etc
-DATA_PATH = 'cs-share/pradalier/lake/Dataset/2016/'
-
-#taking image_auxilliary from 'Dataset/2016/160620' as an example for now TODO: How to browse in absolute path?
-image_auxilliary = pd.read_csv('image_auxilliary.csv')
-print "Correctly loaded image_auxilliary as pd.Dataframe"
-print image_auxilliary.head()
-"""
-TODO next:
-Construct the filepath using 'seq' to get access to the source images (depends on the directory structure)
-For a given image, extract x, y, theta, pan, tilt to construct translation vector & rotation matrix
-Apply these to the pointcloud and check display
-"""
-# Dummy translation vectors, TODO: extract the correct ones from image_auxiliary.csv
-T = [np.array([10, 0, 0]), np.array([0, 10, 0])]
-
-# Rotation matrices: Have to be constructed from theta-omega? TODO: extract the correct ones from image_auxiliary.csv
-R = [np.eye(3), np.eye(3)]
-
+image_auxilliary = "160808/image_auxilliary_new.csv"
+print image_auxilliary
 # create renderer object
 renderer = vtk.vtkRenderer()
 renderer.SetBackground(0, 0, 0)
 print 'Renderer created.\n'
 
+# for the translation, we need to get x_mean, y_mean first (translation vector = (x-x_mean, y-y_mean, 0))
+x_mean = 0
+y_mean = 0
+
+for seq in seq_index:
+
+    param = read_csv_values(image_auxilliary, float(seq))
+    x_mean += param[0]
+    y_mean += param[1]
+x_mean /= len(seq_index)
+y_mean /= len(seq_index)
+print "Computed x_mean =", x_mean, ",y_mean =", y_mean, "\n"
+
+
 # loop over filenames
-for idx, fn in enumerate(scenes):
+for seq in seq_index:
     # read .csv file containing the entire pointcloud
-    scene = pd.read_csv(fn, index_col=0)
+    filename = pointclouds_dir + seq + '_pc.csv'
+    scene = pd.read_csv(filename, index_col=0)
     print 'Imported CSV file.\n'
 
     # find the depth threshold
@@ -62,9 +98,14 @@ for idx, fn in enumerate(scenes):
     colors = scene[['R', 'G', 'B']].as_matrix()
     print 'Converted pd.Dataframes to np.array.\n'
 
+    # parse image_auxilliary to get x, y, theta, pan, tilt, omega
+    param = read_csv_values(image_auxilliary, float(seq))
+
+    # construct rotation matrix
+    rot_matrix = rotation_matrix(param[2], param[3], param[4])
     # apply first rotation to coordinates, then translation
-    points = np.matmul(points,R[idx]) + T[idx]
-    print "Applied dummy rotation & translation.\n"
+    points = np.matmul(points, rot_matrix) + np.array([param[0] - x_mean, param[1] - y_mean, 0])
+    print "Applied rotation & translation.\n"
 
     # next step would be to create a vtkActor from the pointcloud array
     scene_actor = create_pointcloud_actor(points=points, colors=colors)  # returns a vtk.vtkActor() object
@@ -74,11 +115,6 @@ for idx, fn in enumerate(scenes):
     renderer.AddActor(scene_actor)
     print "Added Scene Actor to renderer.\n"
 
-    # create camera actor pointing at current scene
-    camera_actor = create_camera_actor(R[idx], T[idx])
-    print "Created Camera Actor.\n"
-    renderer.AddActor(camera_actor)
-    print "Added Camera Actor to renderer.\n"
 
 # create 3D axes representation
 axes = vtk.vtkAxesActor()
