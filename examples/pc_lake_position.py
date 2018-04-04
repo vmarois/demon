@@ -68,7 +68,7 @@ def rotation_matrix(theta, pan, tilt):
     Using elementary rotation matrix formula for rotation about an axis.
     :return: global 3x3 rotation matrix
     """
-    Ry = np.matrix([[np.cos(-tilt), 0, np.sin(-tilt)], [0, 1, 0], [-np.sin(-tilt), 0, np.cos(-tilt)]])
+    Ry = np.matrix([[np.cos(tilt), 0, np.sin(tilt)], [0, 1, 0], [-np.sin(tilt), 0, np.cos(-tilt)]])
     Rz = np.matrix([[np.cos(theta-pan), -np.sin(theta-pan), 0], [np.sin(theta-pan), np.cos(theta-pan), 0], [0, 0, 1]])
     return np.array(Ry * Rz)
 
@@ -216,7 +216,7 @@ def visualization(n_pointclouds, image_auxilliary):
 
         # apply first rotation to coordinates, then translation
         points = np.matmul(points, rot_matrix)
-        points += np.array([param[0] - x_mean, param[1] - y_mean, 0])
+        points += np.array([param[0] - x_mean, param[1] - y_mean, 0])  # we need to add an offset on the z-coordinate
         print "Applied rotation & translation.\n"
 
         # create a vtkActor from the pointcloud array
@@ -226,6 +226,19 @@ def visualization(n_pointclouds, image_auxilliary):
         # add current scene actor to renderer
         renderer.AddActor(scene_actor)
         print "Added Scene Actor to renderer.\n"
+
+        # create rotation matrix for camera actor
+        cam_rot_matrix = np.matmul(np.array([[0,-1, 0], [0, 0, -1], [1, 0, 0]]), rot_matrix)
+        # create a vtkActor to represent the camera point of view
+        camera_actor = create_camera_actor(cam_rot_matrix, np.zeros((3,)))
+
+        # set camera actor position
+        camera_actor.SetPosition(param[0] - x_mean, param[1] - y_mean, 0)
+        print "Created Camera Actor.\n"
+
+        # add current camera actor to renderer
+        renderer.AddActor(camera_actor)
+        print "Added Camera Actor to renderer.\n"
 
     lines.InsertCellPoint(0)
 
@@ -275,4 +288,4 @@ def visualization(n_pointclouds, image_auxilliary):
 
 if __name__ == '__main__':
     #x_mean, y_mean = compute_center_scale(image_auxilliary)
-    visualization(n_pointclouds=30, image_auxilliary=image_auxilliary)
+    visualization(n_pointclouds=50, image_auxilliary=image_auxilliary)
