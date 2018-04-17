@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 import os
 import sys
 from itertools import tee
-from scipy.spatial import distance
 
 examples_dir = os.path.dirname(__file__)
+
+#### PATHS TO CHANGE WHEN NEEEDED ####
 pointclouds_dir = os.path.join(examples_dir, "pointclouds/")
 pointclouds_thres_dir = os.path.join(examples_dir, "pointclouds_thres/")
-
 image_auxilliary = "160808/image_auxilliary_new.csv"
+######################################
 
 sys.path.insert(0, os.path.join(examples_dir, '..', 'python'))
 from depthmotionnet.vis import *
@@ -64,7 +65,7 @@ def rotation_matrix(theta, pan, tilt):
     """
     Compute the rotation matrix to apply to the pointcloud.
     (theta-pan) around Z axis
-    (-tilt) around Y axis
+    (tilt) around Y axis
     Using elementary rotation matrix formula for rotation about an axis.
     :return: global 3x3 rotation matrix
     """
@@ -112,7 +113,13 @@ def compute_center_scale(image_auxilliary):
 
     distances = []
     for elt in pairwise(coord):  # elt is a tuple (x, y)
-        distances.append(distance.euclidean(elt[0], elt[1]))
+        distances.append(np.sqrt( (elt[0][0] - elt[1][0]) ** 2 + (elt[0][1] - elt[1][1]) ** 2 ))
+
+    # get some statistical info on baseline distance
+    print "Average distance between 2 images: ", np.mean(distances)
+    print "Standard deviation of the distance between 2 images: ", np.std(distances)
+    plt.hist(distances, normed=True, bins=25)
+    plt.show()
 
     # write to file
     with open('distances.txt', 'w') as fp:
@@ -216,7 +223,7 @@ def visualization(n_pointclouds, image_auxilliary):
 
         # apply first rotation to coordinates, then translation
         points = np.matmul(points, rot_matrix)
-        points += np.array([param[0] - x_mean, param[1] - y_mean, 0])  # we need to add an offset on the z-coordinate
+        points += np.array([param[0] - x_mean, param[1] - y_mean, 0])
         print "Applied rotation & translation.\n"
 
         # create a vtkActor from the pointcloud array
@@ -287,5 +294,5 @@ def visualization(n_pointclouds, image_auxilliary):
 
 
 if __name__ == '__main__':
-    #x_mean, y_mean = compute_center_scale(image_auxilliary)
-    visualization(n_pointclouds=50, image_auxilliary=image_auxilliary)
+    x_mean, y_mean = compute_center_scale(image_auxilliary)
+    #visualization(n_pointclouds=50, image_auxilliary=image_auxilliary)

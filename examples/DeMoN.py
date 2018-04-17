@@ -6,10 +6,13 @@ import sys
 
 # define dir paths
 examples_dir = os.path.dirname(__file__)
-pointclouds_dir = os.path.join(examples_dir, "pointclouds/")
-pointclouds_thres_dir = os.path.join(examples_dir, "pointclouds_thres/")
 weights_dir = os.path.join(examples_dir,'..','weights')
 sys.path.insert(0, os.path.join(examples_dir, '..', 'python'))
+
+#### PATHS TO CHANGE WHEN NEEEDED ####
+pointclouds_dir = os.path.join(examples_dir, "pointclouds/")
+pointclouds_thres_dir = os.path.join(examples_dir, "pointclouds_thres/")
+######################################
 
 from depthmotionnet.networks_original import *
 from depthmotionnet.vis import *
@@ -45,14 +48,14 @@ class DeMoN:
 
     def run_many(self, filename):
         """
-        Wrap self.run() into a loop to handle a list of image pairs.
+        Wraps self.run() into a loop to handle a list of image pairs.
         """
         # parse filename containing img pairs references
         img_pairs_list = self.readTupleList(filename)
 
-        for pairs in img_pairs_list:
-            img1_name = pairs[0]
-            img2_name = pairs[1]
+        for pair in img_pairs_list:
+            img1_name = pair[0]
+            img2_name = pair[1]
             self.run(img1_name, img2_name)
 
     def run(self, img1_name, img2_name):
@@ -156,6 +159,5 @@ class DeMoN:
 
 if __name__ == '__main__':
         demon = DeMoN()
-        #demon.run_many('image_pairs_man.txt')
         demon.run_many('image_pairs.txt')
         print "Success"
