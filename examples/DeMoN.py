@@ -10,8 +10,8 @@ weights_dir = os.path.join(examples_dir,'..','weights')
 sys.path.insert(0, os.path.join(examples_dir, '..', 'python'))
 
 #### PATHS TO CHANGE WHEN NEEEDED ####
-pointclouds_dir = os.path.join(examples_dir, "pointclouds/")
-pointclouds_thres_dir = os.path.join(examples_dir, "pointclouds_thres/")
+pointclouds_dir = os.path.join('/', "/mnt/dataX/pointclouds/")
+pointclouds_thres_dir = os.path.join('/', "/mnt/dataX/pointclouds_thres/")
 ######################################
 
 from depthmotionnet.networks_original import *
@@ -46,7 +46,7 @@ class DeMoN:
         self.saver = tf.train.Saver()
         self.saver.restore(self.session, os.path.join(weights_dir, 'demon_original'))
 
-    def run_many(self, filename):
+    def run_many(self, filename, save_pc_thres=False):
         """
         Wraps self.run() into a loop to handle a list of image pairs.
         """
@@ -56,12 +56,20 @@ class DeMoN:
         for pair in img_pairs_list:
             img1_name = pair[0]
             img2_name = pair[1]
-            self.run(img1_name, img2_name)
+            print (img1_name, img2_name)
+            self.run(img1_name, img2_name, save_pc_thres=save_pc_thres)
 
-    def run(self, img1_name, img2_name):
+    def run(self, img1_name, img2_name, save_pc_thres=False):
         """
         run the network & get predictions for a single image pair.
+
+        :param img1_name: first image name
+        :param img2_name: second image name
+        :param save_pc_thres: bool, whether or not to compute & save thresholded pointclouds to file.
+
+        :return: saved pointclouds (.csv files) in pointclouds_dir
         """
+
         img1 = Image.open(os.path.join(examples_dir, img1_name))
         img2 = Image.open(os.path.join(examples_dir, img2_name))
         input_data = self.prepare_input_data(img1, img2)
@@ -102,20 +110,26 @@ class DeMoN:
             print("Cannot export to csv :", err)
         print '\nPointcloud saved to .csv file.'
 
-        # try to find the depth threshold
-        threshold = find_depth_threshold(full_pc_name)
-        print '\nDepth threshold : ', threshold
+        if save_pc_thres:
+            # try to find the depth threshold
+            threshold = find_depth_threshold(full_pc_name)
+            print '\nDepth threshold : ', threshold
 
-        # construct the output file path to export thresholded pointcloud to .csv
-        thres_pc_name = pointclouds_thres_dir + img1_name[-11:-9] + img1_name[-7:-4] + '_pc_thres.csv'
+            # construct the output file path to export thresholded pointcloud to .csv
+            thres_pc_name = pointclouds_thres_dir + img1_name[-11:-9] + img1_name[-7:-4] + '_pc_thres.csv'
 
-        # Ignore points located at infinity (on the sky plane) in the pointcloud
-        ignore_points_depth_threshold(full_pc_name, threshold, thres_pc_name)
-        print "CSV file has been processed to remove points with Z > threshold."
+            # Ignore points located at infinity (on the sky plane) in the pointcloud
+            ignore_points_depth_threshold(full_pc_name, threshold, thres_pc_name)
+            print "CSV file has been processed to remove points with Z > threshold."
 
     def prepare_input_data(self, img1, img2):
         """
         Creates the arrays used as input from the two images.
+
+        :param img1: image 1
+        :param img2: image 2
+
+        :return processed input images
         """
         # scale images if necessary
         if img1.size[0] != 256 or img1.size[1] != 192:
@@ -129,6 +143,7 @@ class DeMoN:
         img2_arr = np.array(img2).astype(np.float32) / 255 - 0.5
         img2_2_arr = np.array(img2_2).astype(np.float32) / 255 - 0.5
 
+        # transpose channels if needed
         if self.data_format == 'channels_first':
             img1_arr = img1_arr.transpose([2, 0, 1])
             img2_arr = img2_arr.transpose([2, 0, 1])
@@ -159,5 +174,5 @@ class DeMoN:
 
 if __name__ == '__main__':
         demon = DeMoN()
-        demon.run_many('image_pairs.txt')
+        demon.run_many('output/image_pairs_baseline.txt')
         print "Success"

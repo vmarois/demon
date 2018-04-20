@@ -8,8 +8,8 @@ import pandas as pd
 examples_dir = os.path.dirname(__file__)
 
 ###### PARAMS TO CHANGE WHEN NEEDED ######
-dataset_dir = os.path.join('/', "/tmp/160808f/")
-image_auxilliary = "/tmp/160808f/image_auxilliary.csv"
+dataset_dir = os.path.join('/', "/mnt/dataX/160808f/")
+image_auxilliary = "/mnt/dataX/160808f/image_auxilliary.csv"
 ##########################################
 
 
@@ -20,22 +20,64 @@ def group_images_pairs():
     Create a .txt file containing the filepath to the 2 images of 1 pair on the same line:
     /path/to/img1   /path/to/img2
     /path/to/img3   /path/to/img4
+
+    Also computes the distances between the 2 images for each pair (using the image_auxilliary) and saves it to file.
+    Will be used later as a scale factor for visualization.
+
+    Also computes average x,y coordinates and saves them to file (used for visualization)
     """
     images_names = []
+    seq = []
 
+    # walk through dataset dir to collect filepaths & construct seq keys
     for path, subdirs, _ in os.walk(dataset_dir):
         for dir in sorted(subdirs):
             for f in sorted(os.listdir(os.path.join(path, dir))):
                 if os.path.isfile(os.path.join(path, dir, f)):
-                    images_names.append(os.path.join(path, dir, f))
+                    filename = os.path.join(path, dir, f)
+                    images_names.append(filename)
+                    seq.append(int(filename[-11:-9] + filename[-7:-4]))
 
-    # group images names by pairs
+    # group images names & seq by pairs
     images_pairs = zip(*[images_names[i::2] for i in range(2)])
+    seq_pairs = zip(*[seq[i::2] for i in range(2)])
 
-    # write to file
-    with open('image_pairs.txt', 'w') as fp:
+    # write image pairs to file
+    with open('output/image_pairs.txt', 'w') as fp:
         fp.write('\n'.join('%s %s' % x for x in images_pairs))
-    print "File image_pairs.txt created."
+    print "File output/image_pairs.txt created."
+
+    # parse csv file into np.array
+    img_aux = [[float(s) for s in l.strip().split(",")] for l in open(image_auxilliary, 'r').readlines() if l[0] != '%']
+    img_aux = np.asarray(img_aux)
+
+    # compute x_mean, y_mean:
+    x_mean = np.mean(img_aux[:, 2])
+    y_mean = np.mean(img_aux[:, 3])
+
+    # write center coordinates to file
+    with open('output/center_coord.txt', 'w') as fp:
+        fp.write('%s %s' % (x_mean, y_mean))
+    print "Saved center coordinates to file."
+
+    # there can be a mismatch between the number of images in dataset & number of lines in image_auxilliary:
+    min_seq = int(img_aux[0,1])
+    max_seq = int(img_aux[-1,1])
+
+    # compute associated distance (will be used as scale factor for pc_lake_position)
+    distances = []
+    for pair in seq_pairs:
+        if pair[0] in range(min_seq, max_seq+1):
+            img1 = img_aux[img_aux[:,1] == pair[0]][0]
+            img2 = img_aux[img_aux[:, 1] == pair[1]][0]
+            distances.append(np.sqrt( (img1[2]-img2[2]) ** 2 + (img1[3]-img2[3]) ** 2 ))
+        else:
+            continue
+
+    # write distances to file
+    with open('output/distances.txt', 'w') as fp:
+        fp.write('\n'.join('%s' % x for x in distances))
+    print "File output/distances.txt created."
 
 
 def read_csv_values(file, image_ref):
@@ -72,7 +114,8 @@ def group_images_baseline(dataset_dir, image_auxilliary):
         - the distance between their 2 positions: Try to get a distance close to 1m. (0.97 <= dist <= 1.03)
         - The tilt angle difference: should be small enough (i.e. to avoid frames of camera pointing to sky)
         - The (theta-pan) angle difference: should also be small, to select frames of the same scene ?
-    :return: write (img1_name, img2_name) to .txt file
+    Also saves the computed distance to file (used a scale factor for visualization)
+    :return: write (img1_name, img2_name) + distances to .txt files
     """
     # get image names: e.g. '160808/0039/0671.jpg' and construct the 'seq' key from here:
     imgnames_seq = []
@@ -89,12 +132,21 @@ def group_images_baseline(dataset_dir, image_auxilliary):
     min_seq = int(imgnames_seq[0][1])
     max_seq = int(imgnames_seq[-1][1])
 
-    # parse csv files into list
+    # parse csv files np.array
     img_aux = [[float(s) for s in l.strip().split(",")] for l in open(image_auxilliary, 'r').readlines() if l[0] != '%']
-    # convert to np.array
     img_aux = np.asarray(img_aux)
 
+    # compute x_mean, y_mean:
+    x_mean = np.mean(img_aux[:, 2])
+    y_mean = np.mean(img_aux[:, 3])
+
+    # write center coordinates to file
+    with open('output/center_coord.txt', 'w') as fp:
+        fp.write('%s %s' % (x_mean, y_mean))
+    print "Saved center coordinates to file."
+
     image_pair = []
+    distances = []
     # loop over the dataset, to select 2 pictures respecting conditions stated in docstring
     idx = 0
 
@@ -118,13 +170,14 @@ def group_images_baseline(dataset_dir, image_auxilliary):
                 img_l = img_aux[idx_2]
 
                 # calculate distance, angle difference between the 2 frames
-                dist = np.sqrt( (img_r[2] - img_l[2]) ** 2 + (img_r[3] - img_l[3]) ** 2 )
+                dist = np.sqrt((img_r[2] - img_l[2]) ** 2 + (img_r[3] - img_l[3]) ** 2)
                 diff_tilt = np.abs(img_r[6] - img_l[6])
                 diff_theta_pan = np.abs((img_r[4] - img_r[5]) - (img_l[4] - img_l[5]))
 
                 # if conditions are checked,
                 if (0.97 <= dist <= 1.03) & (diff_tilt < 0.01) & (diff_theta_pan < 0.3):
                     print "found image:", img_l[1], "distance:", dist
+                    distances.append(dist)
 
                     # get images filepath
                     img1 = [item[0] for item in imgnames_seq if item[1] == img_r[1]]
@@ -134,13 +187,18 @@ def group_images_baseline(dataset_dir, image_auxilliary):
                     idx_2 = 0
                     break
 
-    # save results to file
-    with open('image_pairs_baseline.txt', 'w') as fp:
+    # save matched image pairs to file
+    with open('output/image_pairs_baseline.txt', 'w') as fp:
         fp.write('\n'.join('{} {}'.format(x[0], x[1]) for x in image_pair))
-    print "File image_pairs_baseline.txt created."
+    print "File output/image_pairs_baseline.txt created."
+
+    # write distances to file
+    with open('output/distances_baseline.txt', 'w') as fp:
+        fp.write('\n'.join('%s' % x for x in distances))
+    print "File output/distances_baseline.txt created."
 
 
 if __name__ == '__main__':
-    group_images_pairs()
+    #group_images_pairs()
 
     group_images_baseline(dataset_dir, image_auxilliary)

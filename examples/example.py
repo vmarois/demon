@@ -6,8 +6,12 @@ import os
 import sys
 
 examples_dir = os.path.dirname(__file__)
-pointclouds_dir = os.path.join(examples_dir, "pointclouds/")
-pointclouds_thres_dir = os.path.join(examples_dir, "pointclouds_thres/")
+
+###### PARAMS TO CHANGE WHEN NEEDED ######
+pointclouds_dir = os.path.join('/', "/mnt/dataX/pointclouds/")
+pointclouds_thres_dir = os.path.join('/', "/mnt/dataX/pointclouds_thres/")
+##########################################
+
 weights_dir = os.path.join(examples_dir,'..','weights')
 sys.path.insert(0, os.path.join(examples_dir, '..', 'python'))
 
@@ -65,14 +69,11 @@ else: # running on cpu requires channels_last data format
 #  The parameters are normalized such that the image height and width is 1.
 #
 
-# read data
-
-img1_name = '160808/0019/0382.jpg'
-img2_name = '160808/0019/0402.jpg'
-
+# read input data
+img1_name = 'images/proj2-pair1-R.png'
+img2_name = 'images/proj2-pair1-L.png'
 img1 = Image.open(os.path.join(examples_dir, img1_name))
 img2 = Image.open(os.path.join(examples_dir, img2_name))
-
 input_data = prepare_input_data(img1,img2,data_format)
 
 gpu_options = tf.GPUOptions()
@@ -90,7 +91,6 @@ session.run(tf.global_variables_initializer())
 saver = tf.train.Saver()
 saver.restore(session,os.path.join(weights_dir,'demon_original'))
 
-    
 # run the network
 result = bootstrap_net.eval(input_data['image_pair'], input_data['image2_2'])
 for i in range(3):
@@ -102,8 +102,9 @@ for i in range(3):
         result['predict_rotation'], 
         result['predict_translation']
     )
+
+# extract motion from result
 rotation = result['predict_rotation']
-rot_matrix = angleaxis_to_rotation_matrix(rotation.squeeze())
 translation = result['predict_translation']
 
 result = refine_net.eval(input_data['image1'], result['predict_depth2'])
@@ -115,7 +116,7 @@ plt.show()
 # construct the output file path to export pointcloud to .csv
 filename = pointclouds_dir + img1_name[-11:-9] + img1_name[-7:-4] + '_pc.csv'
 
-# try to export the pointcloud to .csv
+# try to export the pointcloud to .csv in pointclouds_dir
 try:
     export_pointcloud_to_csv(
         filename=filename,
@@ -123,8 +124,8 @@ try:
         image=input_data['image_pair'][0, 0:3] if data_format=='channels_first' else input_data['image_pair'].transpose([0,3,1,2])[0,0:3],
         rotation=rotation,
         translation=translation)
-except ImportError as err_2:
-    print("Cannot export to csv :", err_2)
+except ImportError as err:
+    print("Cannot export to csv :", err)
 print '\nPointcloud saved to .csv file.'
 
 # try to find the depth threshold
