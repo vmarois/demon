@@ -3,6 +3,7 @@
 _This README file gathers information on how the code is structured and how to use it._
 
 Main environment: `Python 2.7`
+
 `Python` packages requirements:
 * Tensorflow 1.4
 * VTK
@@ -21,7 +22,8 @@ The code written is located in `demon/examples` and some functions are located i
 The code is using the partition `/mnt/dataX` on GPU3 to store pointcloud files. Some `.txt` files are created, and stored in `examples/output`.
 
 Main `Python` scripts:
-    * `image_browser.py` : Find pairs of images based on the distance between both frames and their similiraties in terms of tilt & (theta-pan) angle. Matches are written to a .txt file.
+    
+* `image_browser.py` : Find pairs of images based on the distance between both frames and their similiraties in terms of tilt & (theta-pan) angle. Matches are written to a .txt file.
         * **There are 2 paths to edit to use this file:** 
             * *dataset_dir*, which indicates where the dataset folder is located,
             * *image_auxilliary*, which indicates where the image_auxilliary.csv file is located. 
